@@ -29,9 +29,7 @@ func GetSDK(req *http.Request) (*sdk.Service, error) {
 		basePathOverridden = true
 	}
 
-	token := decodePassthroughHeader(req)
-
-	httpClient, err := getHttpClient(token, req)
+	httpClient, err := getHttpClient(req)
 	if err != nil {
 		return nil, err
 	}
@@ -42,16 +40,15 @@ func GetSDK(req *http.Request) (*sdk.Service, error) {
 // getHttpClient returns an Http Client. It will be either Oauth2 or API-key
 // authenticated depending on whether an Oauth token can be procured from the
 // passthrough token
-func getHttpClient(decodedPassthroughToken *goauth2.Token, req *http.Request) (*http.Client, error) {
-
+func getHttpClient(req *http.Request) (*http.Client, error) {
 	var httpClient *http.Client
 	var err error
 
+	decodedPassthroughToken := decodePassthroughHeader(req)
+
 	// Check the token exists because we prefer oauth
 	if decodedPassthroughToken != nil {
-
 		// If it exists, we'll use it to return an authenticated HTTP client
-
 		httpClient, err = getOauth2HTTPClient(req, decodedPassthroughToken)
 	} else {
 		// Otherwise, we'll use API-key authentication
