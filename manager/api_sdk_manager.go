@@ -12,7 +12,7 @@ import (
 	goauth2 "golang.org/x/oauth2"
 )
 
-var basePathOverridden bool = false
+var basePathOverridden = false
 
 // GetSDK will return an instance of the Go SDK using an oauth2 authenticated
 // HTTP client if possible, else an API-key authenticated HTTP client will be used
@@ -29,7 +29,7 @@ func GetSDK(req *http.Request) (*sdk.Service, error) {
 		basePathOverridden = true
 	}
 
-	httpClient, err := getHttpClient(req)
+	httpClient, err := getHTTPClient(req)
 	if err != nil {
 		return nil, err
 	}
@@ -37,14 +37,17 @@ func GetSDK(req *http.Request) (*sdk.Service, error) {
 	return sdk.New(httpClient)
 }
 
-// getHttpClient returns an Http Client. It will be either Oauth2 or API-key
+// getHTTPClient returns an Http Client. It will be either Oauth2 or API-key
 // authenticated depending on whether an Oauth token can be procured from the
 // passthrough token
-func getHttpClient(req *http.Request) (*http.Client, error) {
+func getHTTPClient(req *http.Request) (*http.Client, error) {
 	var httpClient *http.Client
 	var err error
 
-	decodedPassthroughToken := decodePassthroughHeader(req)
+	decodedPassthroughToken, err := decodePassthroughHeader(req)
+	if err != nil {
+		return nil, err
+	}
 
 	// Check the token exists because we prefer oauth
 	if decodedPassthroughToken != nil {
@@ -63,19 +66,23 @@ func getHttpClient(req *http.Request) (*http.Client, error) {
 }
 
 //Returns a decoded passthrough token or nil if no token present
-func decodePassthroughHeader(req *http.Request) *goauth2.Token {
+func decodePassthroughHeader(req *http.Request) (*goauth2.Token, error) {
 
 	passthroughHeader := req.Header.Get("Eric-Access-Token")
 
 	if passthroughHeader != "" {
 
 		decodedPassthrough := &goauth2.Token{}
-		json.Unmarshal([]byte(passthroughHeader), decodedPassthrough)
+		err := json.Unmarshal([]byte(passthroughHeader), decodedPassthrough)
+		if err != nil {
+			return nil, err
+		}
 
-		return decodedPassthrough
-	} else {
-		return nil
+		return decodedPassthrough, nil
 	}
+
+	return nil, nil
+
 }
 
 // getAPIKeyHttpClient returns an API-key-authenticated HTTP client
@@ -109,7 +116,8 @@ func getOauth2HTTPClient(req *http.Request, tok *goauth2.Token) (*http.Client, e
 	return oauth2Config.Client(req.Context(), tok, fn, ""), nil
 }
 
-// As there is no session, a refresh token should never be acquired
+// AccessTokenChangedCallback is the callback to get a new access token
+// As there is no session, a new token should never be acquired
 func AccessTokenChangedCallback(newToken *goauth2.Token, private interface{}) error {
 	return errors.New("Token expired")
 }
