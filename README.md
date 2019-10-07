@@ -1,8 +1,9 @@
 # api-sdk-manager-go-library
 
-Go implementation of the api-sdk-manager-java-library. Users of the SDK will interact with the SDK manager, 
-which wraps up some useful functionality that determines whether to initialise an OAuth2 or API Key-authenticated
-http client.
+Go implementation of the api-sdk-manager-java-library, to be used instead of go-sdk-manager when there is no session 
+present to get the authorisation, so that the session manager is not needlessly imported. Users of the SDK will interact
+with the SDK manager, which wraps up some useful functionality that determines whether to initialise an OAuth2 or 
+API Key-authenticated http client.
 
 ## Requirements
 
