@@ -1,7 +1,8 @@
 # api-sdk-manager-go-library
 
-Go implementation of the SDK manager. Users of the SDK will interact with the SDK manager, which wraps up some useful functionality
-that determines whether to initialise an OAuth2 or API Key-authenticated http client.
+Go implementation of the api-sdk-manager-java-library. Users of the SDK will interact with the SDK manager, 
+which wraps up some useful functionality that determines whether to initialise an OAuth2 or API Key-authenticated
+http client.
 
 ## Requirements
 
@@ -18,7 +19,7 @@ go build
 ```
 
 ## Testing
-The library can be tested by running the following in the command line (in the `go-sdk-manager` directory):
+The library can be tested by running the following in the command line (in the `api-sdk-manager-go-library` directory):
 ```
 goconvey
 ```
@@ -44,4 +45,4 @@ API_URL | The application endpoint for the API | Config | Y
 ## Example library usage
 
 To use the Manager package, add the following to the relevant package import:
-- `"github.com/companieshouse/go-sdk-manager/manager"`
+- `"github.com/companieshouse/api-sdk-manager-go-library/manager"`
