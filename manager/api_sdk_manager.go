@@ -8,11 +8,13 @@ import (
 	sdk "github.com/companieshouse/api-sdk-go/companieshouseapi"
 	choauth2 "github.com/companieshouse/api-sdk-go/oauth2"
 	"github.com/companieshouse/api-sdk-manager-go-library/config"
+	privatesdk "github.com/companieshouse/private-api-sdk-go/companieshouseapi"
 	"github.com/pkg/errors"
 	goauth2 "golang.org/x/oauth2"
 )
 
-var basePathOverridden = false
+var sdkBasePathOverridden = false
+var privateSdkBasePathOverridden = false
 
 // GetSDK will return an instance of the Go SDK using an oauth2 authenticated
 // HTTP client if possible, else an API-key authenticated HTTP client will be used
@@ -23,10 +25,10 @@ func GetSDK(req *http.Request) (*sdk.Service, error) {
 		return nil, err
 	}
 
-	// Override BasePath here to route API requests via ERIC
-	if !basePathOverridden && len(cfg.APIURL) > 0 {
+	// Override sdkBasePath here to route API requests via ERIC
+	if !sdkBasePathOverridden && len(cfg.APIURL) > 0 {
 		sdk.BasePath = cfg.APIURL
-		basePathOverridden = true
+		sdkBasePathOverridden = true
 	}
 
 	httpClient, err := getHTTPClient(req)
@@ -35,6 +37,30 @@ func GetSDK(req *http.Request) (*sdk.Service, error) {
 	}
 
 	return sdk.New(httpClient)
+}
+
+// GetPrivateSDK will return an instance of the Private Go SDK using an oauth2 authenticated
+// HTTP client if possible, else an API-key authenticated HTTP client will be used
+func GetPrivateSDK(req *http.Request) (*privatesdk.Service, error) {
+
+	cfg, err := config.Get()
+	if err != nil {
+		return nil, err
+	}
+
+	// Override privateSdkBasePath here to route API requests via ERIC
+	if !privateSdkBasePathOverridden && len(cfg.APIURL) > 0 {
+		privatesdk.BasePath = cfg.APIURL
+		privatesdk.PostcodeBasePath = cfg.PostcodeService
+		privateSdkBasePathOverridden = true
+	}
+
+	httpClient, err := getHTTPClient(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return privatesdk.New(httpClient)
 }
 
 // getHTTPClient returns an Http Client. It will be either Oauth2 or API-key
