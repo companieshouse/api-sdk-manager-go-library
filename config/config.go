@@ -6,17 +6,18 @@ import (
 	goauth2 "golang.org/x/oauth2"
 )
 
-// Config holds the configuration values required for the `go-sdk-manager`
+// Config holds the configuration values required for the `api-sdk-manager-go-library`
 type Config struct {
-	gofigure     interface{} `order:"env,flag"`
-	ClientID     string      `env:"OAUTH2_CLIENT_ID"     flag:"oauth2-client-id"     flagDesc:"Client ID"`
-	ClientSecret string      `env:"OAUTH2_CLIENT_SECRET" flag:"oauth2-client-secret" flagDesc:"Client Secret"`
-	RedirectURL  string      `env:"OAUTH2_REDIRECT_URI"  flag:"oauth2-redirect-uri"  flagDesc:"Oauth2 Redirect URI"`
-	AuthURL      string      `env:"OAUTH2_AUTH_URI"      flag:"oauth2-auth-uri"      flagDesc:"Oauth2 Auth URI"`
-	TokenURL     string      `env:"OAUTH2_TOKEN_URI"     flag:"oauth2-token-uri"     flagDesc:"Oauth2 Token URI"`
-	Scopes       []string    `env:"SCOPE"                flag:"scope"                flagDesc:"Scope"`
-	APIKey       string      `env:"API_KEY"              flag:"api-key"              flagDesc:"API Key"`
-	APIURL       string      `env:"API_URL"              flag:"api-url"              flagDesc:"API URL"`
+	gofigure        interface{} `order:"env,flag"`
+	ClientID        string      `env:"OAUTH2_CLIENT_ID"     flag:"oauth2-client-id"     flagDesc:"Client ID"`
+	ClientSecret    string      `env:"OAUTH2_CLIENT_SECRET" flag:"oauth2-client-secret" flagDesc:"Client Secret"`
+	RedirectURL     string      `env:"OAUTH2_REDIRECT_URI"  flag:"oauth2-redirect-uri"  flagDesc:"Oauth2 Redirect URI"`
+	AuthURL         string      `env:"OAUTH2_AUTH_URI"      flag:"oauth2-auth-uri"      flagDesc:"Oauth2 Auth URI"`
+	TokenURL        string      `env:"OAUTH2_TOKEN_URI"     flag:"oauth2-token-uri"     flagDesc:"Oauth2 Token URI"`
+	Scopes          []string    `env:"SCOPE"                flag:"scope"                flagDesc:"Scope"`
+	APIKey          string      `env:"API_KEY"              flag:"api-key"              flagDesc:"API Key"`
+	APIURL          string      `env:"API_URL"              flag:"api-url"              flagDesc:"API URL"`
+	PostcodeService string      `env:"POSTCODE_SERVICE"     flag:"postcode-service"     flagDesc:"Postcode Service"`
 }
 
 var oauthConfig *choauth2.Config
