@@ -16,7 +16,7 @@ func TestGetSDKWithOauth2Authentication(t *testing.T) {
 
 		Convey("When I try to retrieve an instance of the SDK", func() {
 
-			service, err := GetSDK(req)
+			service, err := GetSDK(req, true)
 
 			Convey("Then no errors should be returned", func() {
 
@@ -39,7 +39,7 @@ func TestGetSDKWithApiKeyAuthentication(t *testing.T) {
 
 		Convey("When I try to retrieve an instance of the SDK", func() {
 
-			service, err := GetSDK(req)
+			service, err := GetSDK(req, false)
 
 			Convey("Then no errors should be returned", func() {
 

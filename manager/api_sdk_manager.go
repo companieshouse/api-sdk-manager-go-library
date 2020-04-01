@@ -16,7 +16,7 @@ var basePathOverridden = false
 
 // GetSDK will return an instance of the Go SDK using an oauth2 authenticated
 // HTTP client if possible, else an API-key authenticated HTTP client will be used
-func GetSDK(req *http.Request) (*sdk.Service, error) {
+func GetSDK(req *http.Request, usePassthrough bool) (*sdk.Service, error) {
 
 	cfg, err := config.Get()
 	if err != nil {
@@ -29,7 +29,7 @@ func GetSDK(req *http.Request) (*sdk.Service, error) {
 		basePathOverridden = true
 	}
 
-	httpClient, err := getHTTPClient(req)
+	httpClient, err := getHTTPClient(req, usePassthrough)
 	if err != nil {
 		return nil, err
 	}
@@ -40,17 +40,17 @@ func GetSDK(req *http.Request) (*sdk.Service, error) {
 // getHTTPClient returns an Http Client. It will be either Oauth2 or API-key
 // authenticated depending on whether an Oauth token can be procured from the
 // passthrough token
-func getHTTPClient(req *http.Request) (*http.Client, error) {
+func getHTTPClient(req *http.Request, usePassthrough bool) (*http.Client, error) {
 	var httpClient *http.Client
 	var err error
 
-	decodedPassthroughToken, err := decodePassthroughHeader(req)
-	if err != nil {
-		return nil, err
-	}
-
-	// Check the token exists because we prefer oauth
-	if decodedPassthroughToken != nil {
+	// If passthrough token is preferred, get the passthrough token and get an HTTP client
+	if usePassthrough {
+		// Check the token exists
+		decodedPassthroughToken, err := decodePassthroughHeader(req)
+		if err != nil {
+			return nil, err
+		}
 		// If it exists, we'll use it to return an authenticated HTTP client
 		httpClient, err = getOauth2HTTPClient(req, decodedPassthroughToken)
 	} else {
