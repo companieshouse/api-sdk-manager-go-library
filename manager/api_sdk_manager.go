@@ -41,7 +41,7 @@ func GetSDK(req *http.Request, usePassthrough bool) (*sdk.Service, error) {
 
 // GetPrivateSDK will return an instance of the Private Go SDK using an oauth2 authenticated
 // HTTP client if possible, else an API-key authenticated HTTP client will be used
-func GetPrivateSDK(req *http.Request) (*privatesdk.Service, error) {
+func GetPrivateSDK(req *http.Request, usePassthrough bool) (*privatesdk.Service, error) {
 
 	cfg, err := config.Get()
 	if err != nil {
@@ -55,7 +55,7 @@ func GetPrivateSDK(req *http.Request) (*privatesdk.Service, error) {
 		privateSdkBasePathOverridden = true
 	}
 
-	httpClient, err := getHTTPClient(req)
+	httpClient, err := getHTTPClient(req, usePassthrough)
 	if err != nil {
 		return nil, err
 	}
