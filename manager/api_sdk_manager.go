@@ -18,12 +18,14 @@ var privateSdkBasePathOverridden = false
 
 // GetSDK will return an instance of the Go SDK using an oauth2 authenticated
 // HTTP client if requested, else an API-key authenticated HTTP client will be used
-func GetSDK(req *http.Request, usePassthrough bool) (*sdk.Service, error) {
+func GetSDK(req *http.Request, usePassthrough bool, APIKey string) (*sdk.Service, error) {
 
 	cfg, err := config.Get()
 	if err != nil {
 		return nil, err
 	}
+
+	//cfg.APIKey = APIKey
 
 	// Override sdkBasePath here to route API requests via ERIC
 	if !sdkBasePathOverridden && len(cfg.APIURL) > 0 {
@@ -31,7 +33,7 @@ func GetSDK(req *http.Request, usePassthrough bool) (*sdk.Service, error) {
 		sdkBasePathOverridden = true
 	}
 
-	httpClient, err := getHTTPClient(req, usePassthrough)
+	httpClient, err := getHTTPClient(req, usePassthrough, APIKey)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +43,7 @@ func GetSDK(req *http.Request, usePassthrough bool) (*sdk.Service, error) {
 
 // GetPrivateSDK will return an instance of the Private Go SDK using an oauth2 authenticated
 // HTTP client if requested, else an API-key authenticated HTTP client will be used
-func GetPrivateSDK(req *http.Request, usePassthrough bool) (*privatesdk.Service, error) {
+func GetPrivateSDK(req *http.Request, usePassthrough bool, APIKey string) (*privatesdk.Service, error) {
 
 	cfg, err := config.Get()
 	if err != nil {
@@ -55,7 +57,7 @@ func GetPrivateSDK(req *http.Request, usePassthrough bool) (*privatesdk.Service,
 		privateSdkBasePathOverridden = true
 	}
 
-	httpClient, err := getHTTPClient(req, usePassthrough)
+	httpClient, err := getHTTPClient(req, usePassthrough, APIKey)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +67,7 @@ func GetPrivateSDK(req *http.Request, usePassthrough bool) (*privatesdk.Service,
 
 // getHTTPClient returns an Http Client. It will be either Oauth2 or API-key
 // authenticated depending on whether the calling service has requested to use the passthrough token
-func getHTTPClient(req *http.Request, usePassthrough bool) (*http.Client, error) {
+func getHTTPClient(req *http.Request, usePassthrough bool, APIKey string) (*http.Client, error) {
 	var httpClient *http.Client
 	var err error
 
@@ -80,7 +82,7 @@ func getHTTPClient(req *http.Request, usePassthrough bool) (*http.Client, error)
 		httpClient, err = getOauth2HTTPClient(req, decodedPassthroughToken)
 	} else {
 		// Otherwise, we'll use API-key authentication
-		httpClient, err = getAPIKeyHTTPClient(req)
+		httpClient, err = getAPIKeyHTTPClient(req, APIKey)
 	}
 
 	if err != nil {
@@ -111,12 +113,14 @@ func decodePassthroughHeader(req *http.Request) (*goauth2.Token, error) {
 }
 
 // getAPIKeyHttpClient returns an API-key-authenticated HTTP client
-func getAPIKeyHTTPClient(req *http.Request) (*http.Client, error) {
+func getAPIKeyHTTPClient(req *http.Request, APIKey string) (*http.Client, error) {
 
 	cfg, err := config.Get()
 	if err != nil {
 		return nil, err
 	}
+
+	cfg.APIKey = APIKey
 
 	// Initialise an apikey cfg struct
 	apiKeyConfig := &apikey.Config{Key: cfg.APIKey}
