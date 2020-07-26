@@ -31,7 +31,7 @@ type SDKManager struct {
 var sdkManager *SDKManager
 var oauthConfig *choauth2.Config
 
-func Get() (*SDKManager) {
+func Get() *SDKManager {
 
 	if sdkManager != nil {
 		return sdkManager
@@ -67,7 +67,7 @@ func GetOauthConfig() (*choauth2.Config, error) {
 
 // GetSDK will return an instance of the Go SDK using an oauth2 authenticated
 // HTTP client if requested, else an API-key authenticated HTTP client will be used
-func (manager SDKManager) GetSDK(req *http.Request, usePassthrough bool, APIKey string) (*sdk.Service, error) {
+func /*(manager SDKManager)*/ GetSDK(req *http.Request, usePassthrough bool, APIKey string) (*sdk.Service, error) {
 
 	//cfg, err := config.Get()
 	//if err != nil {
@@ -92,7 +92,7 @@ func (manager SDKManager) GetSDK(req *http.Request, usePassthrough bool, APIKey 
 
 // GetPrivateSDK will return an instance of the Private Go SDK using an oauth2 authenticated
 // HTTP client if requested, else an API-key authenticated HTTP client will be used
-func (manager SDKManager) GetPrivateSDK(req *http.Request, usePassthrough bool, APIKey string) (*privatesdk.Service, error) {
+func /*(manager SDKManager)*/ GetPrivateSDK(req *http.Request, usePassthrough bool, APIKey string) (*privatesdk.Service, error) {
 
 	//cfg, err := config.Get()
 	//if err != nil {
