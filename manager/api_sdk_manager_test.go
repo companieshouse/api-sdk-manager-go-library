@@ -1,10 +1,9 @@
 package manager
 
 import (
+	. "github.com/smartystreets/goconvey/convey"
 	"net/http"
 	"testing"
-
-	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestGetSDKWithOauth2Authentication(t *testing.T) {
@@ -15,8 +14,8 @@ func TestGetSDKWithOauth2Authentication(t *testing.T) {
 		req.Header.Add("Eric-Access-Token", `{"token_type":"bearer","access_token":"bar","expires_in":1234}`)
 
 		Convey("When I try to retrieve an instance of the SDK", func() {
-
-			service, err := GetSDK(req, true)
+			sdkManager := Get()
+			service, err := sdkManager.GetSDK(req, true)
 
 			Convey("Then no errors should be returned", func() {
 
@@ -38,8 +37,8 @@ func TestGetSDKWithApiKeyAuthentication(t *testing.T) {
 		req, _ := http.NewRequest("Get", "foo", nil)
 
 		Convey("When I try to retrieve an instance of the SDK", func() {
-
-			service, err := GetSDK(req, false)
+			sdkManager := Get()
+			service, err := sdkManager.GetSDK(req, false)
 
 			Convey("Then no errors should be returned", func() {
 
@@ -62,8 +61,8 @@ func TestGetPrivateSDKWithOauth2Authentication(t *testing.T) {
 		req.Header.Add("Eric-Access-Token", `{"token_type":"bearer","access_token":"bar","expires_in":1234}`)
 
 		Convey("When I try to retrieve an instance of the SDK", func() {
-
-			service, err := GetPrivateSDK(req)
+			sdkManager := Get()
+			service, err := sdkManager.GetPrivateSDK(req, true)
 
 			Convey("Then no errors should be returned", func() {
 
@@ -85,8 +84,8 @@ func TestGetPrivateSDKWithApiKeyAuthentication(t *testing.T) {
 		req, _ := http.NewRequest("Get", "foo", nil)
 
 		Convey("When I try to retrieve an instance of the SDK", func() {
-
-			service, err := GetPrivateSDK(req)
+			sdkManager := Get()
+			service, err := sdkManager.GetPrivateSDK(req, false)
 
 			Convey("Then no errors should be returned", func() {
 

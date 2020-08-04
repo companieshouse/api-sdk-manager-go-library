@@ -2,12 +2,11 @@ package manager
 
 import (
 	"encoding/json"
+	sdk "github.com/companieshouse/api-sdk-go/companieshouseapi"
 	"net/http"
 
 	"github.com/companieshouse/api-sdk-go/apikey"
-	sdk "github.com/companieshouse/api-sdk-go/companieshouseapi"
 	choauth2 "github.com/companieshouse/api-sdk-go/oauth2"
-	"github.com/companieshouse/api-sdk-manager-go-library/config"
 	privatesdk "github.com/companieshouse/private-api-sdk-go/companieshouseapi"
 	"github.com/pkg/errors"
 	goauth2 "golang.org/x/oauth2"
@@ -16,22 +15,67 @@ import (
 var sdkBasePathOverridden = false
 var privateSdkBasePathOverridden = false
 
-// GetSDK will return an instance of the Go SDK using an oauth2 authenticated
-// HTTP client if requested, else an API-key authenticated HTTP client will be used
-func GetSDK(req *http.Request, usePassthrough bool) (*sdk.Service, error) {
+type SDKManager struct {
+	ClientID        string      `env:"OAUTH2_CLIENT_ID"     flag:"oauth2-client-id"     flagDesc:"Client ID"`
+	ClientSecret    string      `env:"OAUTH2_CLIENT_SECRET" flag:"oauth2-client-secret" flagDesc:"Client Secret"`
+	RedirectURL     string      `env:"OAUTH2_REDIRECT_URI"  flag:"oauth2-redirect-uri"  flagDesc:"Oauth2 Redirect URI"`
+	AuthURL         string      `env:"OAUTH2_AUTH_URI"      flag:"oauth2-auth-uri"      flagDesc:"Oauth2 Auth URI"`
+	TokenURL        string      `env:"OAUTH2_TOKEN_URI"     flag:"oauth2-token-uri"     flagDesc:"Oauth2 Token URI"`
+	Scopes          []string    `env:"SCOPE"                flag:"scope"                flagDesc:"Scope"`
+	APIKey          string
+	APIURL          string      `env:"API_URL"              flag:"api-url"              flagDesc:"API URL"`
+	PostcodeService string      `env:"POSTCODE_SERVICE"     flag:"postcode-service"     flagDesc:"Postcode Service"`
+}
 
-	cfg, err := config.Get()
-	if err != nil {
-		return nil, err
+var sdkManager *SDKManager
+var oauthConfig *choauth2.Config
+
+func Get() *SDKManager {
+
+	if sdkManager != nil {
+		return sdkManager
 	}
 
+	sdkManager = &SDKManager{}
+	return sdkManager
+}
+
+// GetOauthConfig returns an instance of a Companies House oauth config struct
+// and an error wheere appropriate
+func GetOauthConfig() (*choauth2.Config, error) {
+
+	if oauthConfig != nil {
+		return oauthConfig, nil
+	}
+
+	cfg := Get()
+
+	oauthConfig = &choauth2.Config{}
+	oauthConfig.ClientID = cfg.ClientID
+	oauthConfig.ClientSecret = cfg.ClientSecret
+	oauthConfig.RedirectURL = cfg.RedirectURL
+	oauthConfig.Scopes = cfg.Scopes
+	oauthConfig.Endpoint = goauth2.Endpoint{
+		AuthURL:  cfg.AuthURL,
+		TokenURL: cfg.TokenURL,
+	}
+
+	return oauthConfig, nil
+}
+
+// GetSDK will return an instance of the Go SDK using an oauth2 authenticated
+// HTTP client if requested, else an API-key authenticated HTTP client will be used
+func (manager SDKManager) GetSDK(req *http.Request, usePassthrough bool) (*sdk.Service, error) {
+
+	//cfg := Get()
+
 	// Override sdkBasePath here to route API requests via ERIC
-	if !sdkBasePathOverridden && len(cfg.APIURL) > 0 {
-		sdk.BasePath = cfg.APIURL
+	if !sdkBasePathOverridden && len(manager.APIURL) > 0 {
+		sdk.BasePath = manager.APIURL
 		sdkBasePathOverridden = true
 	}
 
-	httpClient, err := getHTTPClient(req, usePassthrough)
+	httpClient, err := manager.getHTTPClient(req, usePassthrough)
 	if err != nil {
 		return nil, err
 	}
@@ -41,21 +85,18 @@ func GetSDK(req *http.Request, usePassthrough bool) (*sdk.Service, error) {
 
 // GetPrivateSDK will return an instance of the Private Go SDK using an oauth2 authenticated
 // HTTP client if requested, else an API-key authenticated HTTP client will be used
-func GetPrivateSDK(req *http.Request, usePassthrough bool) (*privatesdk.Service, error) {
+func (manager SDKManager) GetPrivateSDK(req *http.Request, usePassthrough bool) (*privatesdk.Service, error) {
 
-	cfg, err := config.Get()
-	if err != nil {
-		return nil, err
-	}
+	//cfg := Get()
 
 	// Override privateSdkBasePath here to route API requests via ERIC
-	if !privateSdkBasePathOverridden && len(cfg.APIURL) > 0 {
-		privatesdk.BasePath = cfg.APIURL
-		privatesdk.PostcodeBasePath = cfg.PostcodeService
+	if !privateSdkBasePathOverridden && len(manager.APIURL) > 0 {
+		privatesdk.BasePath = manager.APIURL
+		privatesdk.PostcodeBasePath = manager.PostcodeService
 		privateSdkBasePathOverridden = true
 	}
 
-	httpClient, err := getHTTPClient(req, usePassthrough)
+	httpClient, err := manager.getHTTPClient(req, usePassthrough)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +106,7 @@ func GetPrivateSDK(req *http.Request, usePassthrough bool) (*privatesdk.Service,
 
 // getHTTPClient returns an Http Client. It will be either Oauth2 or API-key
 // authenticated depending on whether the calling service has requested to use the passthrough token
-func getHTTPClient(req *http.Request, usePassthrough bool) (*http.Client, error) {
+func (manager SDKManager) getHTTPClient(req *http.Request, usePassthrough bool) (*http.Client, error) {
 	var httpClient *http.Client
 	var err error
 
@@ -80,7 +121,7 @@ func getHTTPClient(req *http.Request, usePassthrough bool) (*http.Client, error)
 		httpClient, err = getOauth2HTTPClient(req, decodedPassthroughToken)
 	} else {
 		// Otherwise, we'll use API-key authentication
-		httpClient, err = getAPIKeyHTTPClient(req)
+		httpClient, err = manager.getAPIKeyHTTPClient(req)
 	}
 
 	if err != nil {
@@ -111,25 +152,20 @@ func decodePassthroughHeader(req *http.Request) (*goauth2.Token, error) {
 }
 
 // getAPIKeyHttpClient returns an API-key-authenticated HTTP client
-func getAPIKeyHTTPClient(req *http.Request) (*http.Client, error) {
-
-	cfg, err := config.Get()
-	if err != nil {
-		return nil, err
-	}
-
+func (manager SDKManager) getAPIKeyHTTPClient(req *http.Request) (*http.Client, error) {
+	//cfg := Get()
 	// Initialise an apikey cfg struct
-	apiKeyConfig := &apikey.Config{Key: cfg.APIKey}
+	apiKeyConfig := &apikey.Config{Key: manager.APIKey}
 
 	// Create an http client
-	return apiKeyConfig.Client(req.Context(), cfg.APIKey), nil
+	return apiKeyConfig.Client(req.Context(), manager.APIKey), nil
 }
 
 // getOauth2HttpClient returns an Oauth2-authenticated HTTP client
 func getOauth2HTTPClient(req *http.Request, tok *goauth2.Token) (*http.Client, error) {
 
 	// Fetch oauth config
-	oauth2Config, err := config.GetOauthConfig()
+	oauth2Config, err := GetOauthConfig()
 	if err != nil {
 		return nil, err
 	}
