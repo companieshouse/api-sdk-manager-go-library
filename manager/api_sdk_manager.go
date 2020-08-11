@@ -2,8 +2,10 @@ package manager
 
 import (
 	"encoding/json"
-	sdk "github.com/companieshouse/api-sdk-go/companieshouseapi"
+	"fmt"
 	"net/http"
+
+	sdk "github.com/companieshouse/api-sdk-go/companieshouseapi"
 
 	"github.com/companieshouse/api-sdk-go/apikey"
 	choauth2 "github.com/companieshouse/api-sdk-go/oauth2"
@@ -15,59 +17,24 @@ import (
 var sdkBasePathOverridden = false
 var privateSdkBasePathOverridden = false
 
-type SDKManager struct {
-	ClientID        string      `env:"OAUTH2_CLIENT_ID"     flag:"oauth2-client-id"     flagDesc:"Client ID"`
-	ClientSecret    string      `env:"OAUTH2_CLIENT_SECRET" flag:"oauth2-client-secret" flagDesc:"Client Secret"`
-	RedirectURL     string      `env:"OAUTH2_REDIRECT_URI"  flag:"oauth2-redirect-uri"  flagDesc:"Oauth2 Redirect URI"`
-	AuthURL         string      `env:"OAUTH2_AUTH_URI"      flag:"oauth2-auth-uri"      flagDesc:"Oauth2 Auth URI"`
-	TokenURL        string      `env:"OAUTH2_TOKEN_URI"     flag:"oauth2-token-uri"     flagDesc:"Oauth2 Token URI"`
-	Scopes          []string    `env:"SCOPE"                flag:"scope"                flagDesc:"Scope"`
-	APIKey          string
-	APIURL          string      `env:"API_URL"              flag:"api-url"              flagDesc:"API URL"`
-	PostcodeService string      `env:"POSTCODE_SERVICE"     flag:"postcode-service"     flagDesc:"Postcode Service"`
+// APISDKManager struct holds the required values to provide API to API communication
+type APISDKManager struct {
+	APIKey string
+	APIURL string
 }
 
-var sdkManager *SDKManager
+type passthroughToken struct {
+	TokenType   string `json:"token_type"`
+	AccessToken string `json:"access_token"`
+	ExpiresIn   int64  `json:"expires_in"`
+}
+
+var sdkManager *APISDKManager
 var oauthConfig *choauth2.Config
-
-func Get() *SDKManager {
-
-	if sdkManager != nil {
-		return sdkManager
-	}
-
-	sdkManager = &SDKManager{}
-	return sdkManager
-}
-
-// GetOauthConfig returns an instance of a Companies House oauth config struct
-// and an error wheere appropriate
-func GetOauthConfig() (*choauth2.Config, error) {
-
-	if oauthConfig != nil {
-		return oauthConfig, nil
-	}
-
-	cfg := Get()
-
-	oauthConfig = &choauth2.Config{}
-	oauthConfig.ClientID = cfg.ClientID
-	oauthConfig.ClientSecret = cfg.ClientSecret
-	oauthConfig.RedirectURL = cfg.RedirectURL
-	oauthConfig.Scopes = cfg.Scopes
-	oauthConfig.Endpoint = goauth2.Endpoint{
-		AuthURL:  cfg.AuthURL,
-		TokenURL: cfg.TokenURL,
-	}
-
-	return oauthConfig, nil
-}
 
 // GetSDK will return an instance of the Go SDK using an oauth2 authenticated
 // HTTP client if requested, else an API-key authenticated HTTP client will be used
-func (manager SDKManager) GetSDK(req *http.Request, usePassthrough bool) (*sdk.Service, error) {
-
-	//cfg := Get()
+func (manager APISDKManager) GetSDK(req *http.Request, usePassthrough bool) (*sdk.Service, error) {
 
 	// Override sdkBasePath here to route API requests via ERIC
 	if !sdkBasePathOverridden && len(manager.APIURL) > 0 {
@@ -85,14 +52,11 @@ func (manager SDKManager) GetSDK(req *http.Request, usePassthrough bool) (*sdk.S
 
 // GetPrivateSDK will return an instance of the Private Go SDK using an oauth2 authenticated
 // HTTP client if requested, else an API-key authenticated HTTP client will be used
-func (manager SDKManager) GetPrivateSDK(req *http.Request, usePassthrough bool) (*privatesdk.Service, error) {
-
-	//cfg := Get()
+func (manager APISDKManager) GetPrivateSDK(req *http.Request, usePassthrough bool) (*privatesdk.Service, error) {
 
 	// Override privateSdkBasePath here to route API requests via ERIC
 	if !privateSdkBasePathOverridden && len(manager.APIURL) > 0 {
 		privatesdk.BasePath = manager.APIURL
-		privatesdk.PostcodeBasePath = manager.PostcodeService
 		privateSdkBasePathOverridden = true
 	}
 
@@ -106,7 +70,7 @@ func (manager SDKManager) GetPrivateSDK(req *http.Request, usePassthrough bool) 
 
 // getHTTPClient returns an Http Client. It will be either Oauth2 or API-key
 // authenticated depending on whether the calling service has requested to use the passthrough token
-func (manager SDKManager) getHTTPClient(req *http.Request, usePassthrough bool) (*http.Client, error) {
+func (manager APISDKManager) getHTTPClient(req *http.Request, usePassthrough bool) (*http.Client, error) {
 	var httpClient *http.Client
 	var err error
 
@@ -117,11 +81,23 @@ func (manager SDKManager) getHTTPClient(req *http.Request, usePassthrough bool) 
 		if err != nil {
 			return nil, err
 		}
-		// If it exists, we'll use it to return an authenticated HTTP client
-		httpClient, err = getOauth2HTTPClient(req, decodedPassthroughToken)
+		// check which type of token it is i.e. Bearer for OAuth2, Basic for API Key
+		if decodedPassthroughToken.TokenType == "Bearer" {
+			decodedPassthrough := &goauth2.Token{
+				AccessToken: decodedPassthroughToken.AccessToken,
+				TokenType:   decodedPassthroughToken.TokenType,
+			}
+			httpClient, err = getOauth2HTTPClient(req, decodedPassthrough)
+
+		} else if decodedPassthroughToken.TokenType == "Basic" {
+			apiKeyConfig := &apikey.Config{Key: decodedPassthroughToken.AccessToken}
+			httpClient = apiKeyConfig.Client(req.Context(), decodedPassthroughToken.AccessToken)
+		} else {
+			err = fmt.Errorf("invalid token_type in passthrough header: token_type=[%s], passthrough_header=[%s]", decodedPassthroughToken.TokenType, decodedPassthroughToken)
+		}
 	} else {
-		// Otherwise, we'll use API-key authentication
-		httpClient, err = manager.getAPIKeyHTTPClient(req)
+		// Otherwise, we'll use API-key authentication with the managaer structs APIKey provided
+		httpClient, err = manager.getAPIKeyHTTPClient(req, manager.APIKey)
 	}
 
 	if err != nil {
@@ -132,13 +108,13 @@ func (manager SDKManager) getHTTPClient(req *http.Request, usePassthrough bool) 
 }
 
 //Returns a decoded passthrough token or nil if no token present
-func decodePassthroughHeader(req *http.Request) (*goauth2.Token, error) {
+func decodePassthroughHeader(req *http.Request) (*passthroughToken, error) {
 
 	passthroughHeader := req.Header.Get("Eric-Access-Token")
 
 	if passthroughHeader != "" {
 
-		decodedPassthrough := &goauth2.Token{}
+		decodedPassthrough := &passthroughToken{}
 		err := json.Unmarshal([]byte(passthroughHeader), decodedPassthrough)
 		if err != nil {
 			return nil, err
@@ -152,23 +128,19 @@ func decodePassthroughHeader(req *http.Request) (*goauth2.Token, error) {
 }
 
 // getAPIKeyHttpClient returns an API-key-authenticated HTTP client
-func (manager SDKManager) getAPIKeyHTTPClient(req *http.Request) (*http.Client, error) {
-	//cfg := Get()
+func (manager APISDKManager) getAPIKeyHTTPClient(req *http.Request, key string) (*http.Client, error) {
 	// Initialise an apikey cfg struct
-	apiKeyConfig := &apikey.Config{Key: manager.APIKey}
+	apiKeyConfig := &apikey.Config{Key: key}
 
 	// Create an http client
-	return apiKeyConfig.Client(req.Context(), manager.APIKey), nil
+	return apiKeyConfig.Client(req.Context(), key), nil
 }
 
 // getOauth2HttpClient returns an Oauth2-authenticated HTTP client
 func getOauth2HTTPClient(req *http.Request, tok *goauth2.Token) (*http.Client, error) {
 
 	// Fetch oauth config
-	oauth2Config, err := GetOauthConfig()
-	if err != nil {
-		return nil, err
-	}
+	oauth2Config := &choauth2.Config{}
 
 	// Initialise the callback function to be fired on session expiry
 	var fn choauth2.NotifyFunc = AccessTokenChangedCallback
