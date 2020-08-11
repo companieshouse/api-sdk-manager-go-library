@@ -2,6 +2,7 @@ package manager
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	sdk "github.com/companieshouse/api-sdk-go/companieshouseapi"
@@ -20,6 +21,12 @@ var privateSdkBasePathOverridden = false
 type APISDKManager struct {
 	APIKey string
 	APIURL string
+}
+
+type passthroughToken struct {
+	TokenType   string `json:"token_type"`
+	AccessToken string `json:"access_token"`
+	ExpiresIn   int64  `json:"expires_in"`
 }
 
 var sdkManager *APISDKManager
@@ -74,11 +81,23 @@ func (manager APISDKManager) getHTTPClient(req *http.Request, usePassthrough boo
 		if err != nil {
 			return nil, err
 		}
-		// If it exists, we'll use it to return an authenticated HTTP client
-		httpClient, err = getOauth2HTTPClient(req, decodedPassthroughToken)
+		// check which type of token it is i.e. Bearer for OAuth2, Basic for API Key
+		if decodedPassthroughToken.TokenType == "Bearer" {
+			decodedPassthrough := &goauth2.Token{
+				AccessToken: decodedPassthroughToken.AccessToken,
+				TokenType:   decodedPassthroughToken.TokenType,
+			}
+			httpClient, err = getOauth2HTTPClient(req, decodedPassthrough)
+
+		} else if decodedPassthroughToken.TokenType == "Basic" {
+			apiKeyConfig := &apikey.Config{Key: decodedPassthroughToken.AccessToken}
+			httpClient = apiKeyConfig.Client(req.Context(), decodedPassthroughToken.AccessToken)
+		} else {
+			err = fmt.Errorf("invalid token_type in passthrough header: token_type=[%s], passthrough_header=[%s]", decodedPassthroughToken.TokenType, decodedPassthroughToken)
+		}
 	} else {
-		// Otherwise, we'll use API-key authentication
-		httpClient, err = manager.getAPIKeyHTTPClient(req)
+		// Otherwise, we'll use API-key authentication with the managaer structs APIKey provided
+		httpClient, err = manager.getAPIKeyHTTPClient(req, manager.APIKey)
 	}
 
 	if err != nil {
@@ -89,13 +108,13 @@ func (manager APISDKManager) getHTTPClient(req *http.Request, usePassthrough boo
 }
 
 //Returns a decoded passthrough token or nil if no token present
-func decodePassthroughHeader(req *http.Request) (*goauth2.Token, error) {
+func decodePassthroughHeader(req *http.Request) (*passthroughToken, error) {
 
 	passthroughHeader := req.Header.Get("Eric-Access-Token")
 
 	if passthroughHeader != "" {
 
-		decodedPassthrough := &goauth2.Token{}
+		decodedPassthrough := &passthroughToken{}
 		err := json.Unmarshal([]byte(passthroughHeader), decodedPassthrough)
 		if err != nil {
 			return nil, err
@@ -109,13 +128,12 @@ func decodePassthroughHeader(req *http.Request) (*goauth2.Token, error) {
 }
 
 // getAPIKeyHttpClient returns an API-key-authenticated HTTP client
-func (manager APISDKManager) getAPIKeyHTTPClient(req *http.Request) (*http.Client, error) {
-	//cfg := Get()
+func (manager APISDKManager) getAPIKeyHTTPClient(req *http.Request, key string) (*http.Client, error) {
 	// Initialise an apikey cfg struct
-	apiKeyConfig := &apikey.Config{Key: manager.APIKey}
+	apiKeyConfig := &apikey.Config{Key: key}
 
 	// Create an http client
-	return apiKeyConfig.Client(req.Context(), manager.APIKey), nil
+	return apiKeyConfig.Client(req.Context(), key), nil
 }
 
 // getOauth2HttpClient returns an Oauth2-authenticated HTTP client
