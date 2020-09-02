@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	sdk "github.com/companieshouse/api-sdk-go/companieshouseapi"
-
+  "github.com/companieshouse/chs.go/log"
 	"github.com/companieshouse/api-sdk-go/apikey"
 	choauth2 "github.com/companieshouse/api-sdk-go/oauth2"
 	privatesdk "github.com/companieshouse/private-api-sdk-go/companieshouseapi"
@@ -77,7 +77,11 @@ func (manager APISDKManager) getHTTPClient(req *http.Request, usePassthrough boo
 	// If passthrough token is preferred, get the passthrough token and get an HTTP client
 	if usePassthrough {
 		// Check the token exists
+		log.TraceR(req, "api_sdk_manager::getHTTPClient : Start of decoding passhthrough header")
 		decodedPassthroughToken, err := decodePassthroughHeader(req)
+		log.TraceR(req, "api_sdk_manager::getHTTPClient : decodedPassthroughToken.TokenType -> ", log.Data{"decodedPassthroughToken.TokenType": decodedPassthroughToken.TokenType})
+		log.TraceR(req, "api_sdk_manager::getHTTPClient : decodedPassthroughToken.AccessToken -> ", log.Data{"decodedPassthroughToken.AccessToken": decodedPassthroughToken.AccessToken})
+    log.TraceR(req, "api_sdk_manager::getHTTPClient : error -> ", log.Data{"err": err})
 		if err != nil {
 			return nil, err
 		}
@@ -88,21 +92,27 @@ func (manager APISDKManager) getHTTPClient(req *http.Request, usePassthrough boo
 				TokenType:   decodedPassthroughToken.TokenType,
 			}
 			httpClient, err = getOauth2HTTPClient(req, decodedPassthrough)
-
+      log.TraceR(req, "api_sdk_manager::getHTTPClient [Bearer] : httpClient -> ",  log.Data{"httpClient": httpClient})
 		} else if decodedPassthroughToken.TokenType == "Basic" {
 			apiKeyConfig := &apikey.Config{Key: decodedPassthroughToken.AccessToken}
 			httpClient = apiKeyConfig.Client(req.Context(), decodedPassthroughToken.AccessToken)
+			log.TraceR(req, "api_sdk_manager::getHTTPClient [Basic] : httpClient -> ",  log.Data{"httpClient": httpClient})
 		} else {
 			err = fmt.Errorf("invalid token_type in passthrough header: token_type=[%s], passthrough_header=[%s]", decodedPassthroughToken.TokenType, decodedPassthroughToken)
 		}
 	} else {
 		// Otherwise, we'll use API-key authentication with the managaer structs APIKey provided
 		httpClient, err = manager.getAPIKeyHTTPClient(req, manager.APIKey)
+		log.TraceR(req, "api_sdk_manager::getHTTPClient [Other] : httpClient -> ",  log.Data{"httpClient": httpClient})
 	}
+
+	log.InfoR(req, "api_sdk_manager::getHTTPClient : Finished processing decodedPassthroughToken")
 
 	if err != nil {
 		return nil, err
 	}
+
+	log.InfoR(req, "api_sdk_manager::getHTTPClient : Returning to caller")
 
 	return httpClient, nil
 }
@@ -112,10 +122,15 @@ func decodePassthroughHeader(req *http.Request) (*passthroughToken, error) {
 
 	passthroughHeader := req.Header.Get("Eric-Access-Token")
 
-	if passthroughHeader != "" {
+  log.TraceR(req, "api_sdk_manager::decodePassthroughHeader : passthroughHeader -> ", log.Data{"passthroughHeader": passthroughHeader})
 
+	if passthroughHeader != "" {
 		decodedPassthrough := &passthroughToken{}
 		err := json.Unmarshal([]byte(passthroughHeader), decodedPassthrough)
+		log.TraceR(req, "api_sdk_manager::decodePassthroughHeader : decodedPassthrough.TokenType -> ", log.Data{"decodedPassthrough.TokenType": decodedPassthrough.TokenType})
+		log.TraceR(req, "api_sdk_manager::decodePassthroughHeader : decodedPassthrough.AccessToken -> ", log.Data{"decodedPassthrough.AccessToken": decodedPassthrough.AccessToken})
+		log.TraceR(req, "api_sdk_manager::decodePassthroughHeader : decodedPassthrough.ExpiresIn -> ", log.Data{"decodedPassthrough.ExpiresIn": decodedPassthrough.ExpiresIn})
+		log.TraceR(req, "api_sdk_manager::decodePassthroughHeader : err -> ", log.Data{"err": err})
 		if err != nil {
 			return nil, err
 		}
